@@ -14,8 +14,10 @@ public class Main {
 
 	//Backup properties
 	private static String syncSource = "/Users/paolobaioni/TestSyncSource";
+	//private static String syncSource = "/Users/paolobaioni/Documents/Pictures";
 
 	private static String syncDest = "/Users/paolobaioni/TestSyncDest";
+	//private static String syncDest = "/Volumes/Paolo_backup/Documents/Pictures";
 	
 
 	public static void main(String[] args) throws IOException {

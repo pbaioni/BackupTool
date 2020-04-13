@@ -32,6 +32,8 @@ public class Backup {
 	public Backup(String syncSource, String syncDest) {
 		this.syncSource = syncSource;
 		this.syncDest = syncDest;
+		File destFolder = new File(syncDest);
+		destFolder.mkdirs();
 		evaluateBackupAction();
 	}
 
@@ -64,16 +66,16 @@ public class Backup {
 	
 	public void synchronizeFolders() throws IOException {
 
-		File destFolder = new File(syncDest);
-		destFolder.mkdirs();
-
-		System.out.println("Searching for renamed folders...");
-		
+		System.out.println("Searching for folders to rename...");
+		int renamed = 0;
 		while (renameFolders(filesToBackup, filesToRemove) > 0) {
-
+			renamed++;
 		}
-		
-		System.out.println();
+		if (renamed == 0) {
+			System.out.println("No folder to rename\n");
+		} else {
+			System.out.println(renamed + " folders renamed\n");
+		}
 		
 		backupNewFiles(filesToBackup);
 

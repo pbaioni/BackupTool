@@ -89,8 +89,7 @@ public class FileTree {
 		if (subfolders == null) {
 			if (other.subfolders != null)
 				return false;
-		} else if (!(subfolders.size() == other.subfolders.size()))
-			return false;
+		}
 		return true && equalSubfolders(other);
 	}
 
@@ -105,7 +104,7 @@ public class FileTree {
 				}
 			}
 		}
-		return matches == subfolders.size();
+		return matches == other.getSubfolders().size();
 	}
 
 }

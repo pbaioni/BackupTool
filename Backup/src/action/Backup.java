@@ -34,10 +34,10 @@ public class Backup {
 		this.syncDest = syncDest;
 		File destFolder = new File(syncDest);
 		destFolder.mkdirs();
-		evaluateBackupAction();
+		calculateBackupAction();
 	}
 
-	private void evaluateBackupAction() {
+	private void calculateBackupAction() {
 
 		List<String> sourceFiles = new ArrayList<String>();
 		List<String> destFiles = new ArrayList<String>();
@@ -66,9 +66,22 @@ public class Backup {
 	
 	public void synchronizeFolders() throws IOException {
 
+		renameFolders();
+		
+		backupNewFiles();
+
+		updateModifiedFiles();
+
+		removeOldFiles();
+
+	}
+
+	private void renameFolders() throws IOException {
+		
 		System.out.println("Searching for folders to rename...");
+		
 		int renamed = 0;
-		while (renameFolders(filesToBackup, filesToRemove) > 0) {
+		while (renameOneFolder()) {
 			renamed++;
 		}
 		if (renamed == 0) {
@@ -76,40 +89,34 @@ public class Backup {
 		} else {
 			System.out.println(renamed + " folders renamed\n");
 		}
-		
-		backupNewFiles(filesToBackup);
-
-		updateModifiedFiles(commonFiles);
-
-		removeOldFiles(filesToRemove);
 
 	}
-
-	private int renameFolders(List<String> filesToBackup, List<String> filesToRemove) throws IOException {
+	
+	private boolean renameOneFolder() throws IOException {
 		
-		int renamed = 0;
-
+		boolean rval = false;
+		
 		List<FileTree> newTrees = createFileTrees(syncSource, filesToBackup);
 
 		List<FileTree> oldTrees = createFileTrees(syncDest, filesToRemove);
 
 		for (FileTree tree : newTrees) {
-			if (renamed == 0) {
+			if (!rval) {
 				for (FileTree oldTree : oldTrees) {
 					if (tree.equals(oldTree)) {
 						String oldFolderName = oldTree.getAbsolutePath();
 						String newFolderName = syncDest + tree.getAbsolutePath().replace(syncSource, "");
 						Files.move(Paths.get(oldFolderName), Paths.get(newFolderName), StandardCopyOption.REPLACE_EXISTING);
 						System.out.println("Folder " + oldFolderName + " renamed to " + newFolderName);
-						evaluateBackupAction();
-						renamed++;
+						calculateBackupAction();
+						rval=true;
 						break;
 					}
 				}
 			}
 		}
 
-		return renamed;
+		return rval;
 
 	}
 
@@ -132,9 +139,9 @@ public class Backup {
 		return trees;
 	}
 
-	private void backupNewFiles(List<String> filesToBackup) throws IOException {
+	private void backupNewFiles() throws IOException {
 
-		System.out.println("Evaluating backup for new files...");
+		System.out.println("Searching for new files to backup...");
 
 		int countFiles = 0;
 		int countFolders = 0;
@@ -154,16 +161,16 @@ public class Backup {
 		}
 
 		if (countFiles == 0 && countFolders == 0) {
-			System.out.println("No file to backup\n");
+			System.out.println("Nothing to backup\n");
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders saved\n");
 		}
 
 	}
 
-	private void updateModifiedFiles(List<String> commonFiles) throws IOException {
+	private void updateModifiedFiles() throws IOException {
 
-		System.out.println("Searching files to update...");
+		System.out.println("Searching for updated files...");
 
 		int countFiles = 0;
 		int countFolders = 0;
@@ -190,16 +197,16 @@ public class Backup {
 		}
 
 		if (countFiles == 0 && countFolders == 0) {
-			System.out.println("No file to update\n");
+			System.out.println("No update found\n");
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders updated\n");
 		}
 
 	}
 
-	private void removeOldFiles(List<String> filesToRemove) throws IOException {
+	private void removeOldFiles() throws IOException {
 
-		System.out.println("Searching old backup files to remove...");
+		System.out.println("Searching for obsolete backup files to remove...");
 
 		List<String> foldersToRemove = new ArrayList<String>();
 
@@ -230,7 +237,7 @@ public class Backup {
 		}
 
 		if (countFiles == 0 && countFolders == 0) {
-			System.out.println("No file to remove\n");
+			System.out.println("Nothing to remove\n");
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders removed\n");
 		}

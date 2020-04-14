@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import main.BackupResult;
+
 public class Backup {
 
 	private String syncSource;
@@ -64,19 +66,26 @@ public class Backup {
 		}
 	}
 	
-	public void synchronizeFolders() throws IOException {
-
-		renameFolders();
+	public BackupResult synchronizeFolders() throws IOException {
 		
-		backupNewFiles();
+		BackupResult result = new BackupResult();
 
-		updateModifiedFiles();
+		calculateBackupAction();
+		
+		System.out.println("************************");
+		renameFolders(result);
+		
+		backupNewFiles(result);
 
-		removeOldFiles();
+		updateModifiedFiles(result);
+
+		removeObsoleteFiles(result);
+		
+		return result;
 
 	}
 
-	private void renameFolders() throws IOException {
+	private void renameFolders(BackupResult result) throws IOException {
 		
 		System.out.println("Searching for folders to rename...");
 		
@@ -89,6 +98,8 @@ public class Backup {
 		} else {
 			System.out.println(renamed + " folders renamed\n");
 		}
+		
+		result.setRenamedFolders(renamed);
 
 	}
 	
@@ -139,7 +150,7 @@ public class Backup {
 		return trees;
 	}
 
-	private void backupNewFiles() throws IOException {
+	private void backupNewFiles(BackupResult result) throws IOException {
 
 		System.out.println("Searching for new files to backup...");
 
@@ -165,10 +176,13 @@ public class Backup {
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders saved\n");
 		}
+		
+		result.setCopiedFiles(countFiles);
+		result.setCopiedFolders(countFolders);
 
 	}
 
-	private void updateModifiedFiles() throws IOException {
+	private void updateModifiedFiles(BackupResult result) throws IOException {
 
 		System.out.println("Searching for updated files...");
 
@@ -201,10 +215,13 @@ public class Backup {
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders updated\n");
 		}
+		
+		result.setUpdatedFiles(countFiles);
+		result.setUpdatedFolders(countFolders);
 
 	}
 
-	private void removeOldFiles() throws IOException {
+	private void removeObsoleteFiles(BackupResult result) throws IOException {
 
 		System.out.println("Searching for obsolete backup files to remove...");
 
@@ -241,6 +258,9 @@ public class Backup {
 		} else {
 			System.out.println(countFiles + " files and " + countFolders + " folders removed\n");
 		}
+		
+		result.setRemovedFiles(countFiles);
+		result.setRemovedFolders(countFolders);
 
 	}
 

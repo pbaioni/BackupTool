@@ -2,8 +2,8 @@ package main;
 
 import java.io.IOException;
 
-import action.Backup;
 import action.Copy;
+import test.Test;
 
 public class Main {
 
@@ -13,24 +13,27 @@ public class Main {
 	private static String[] extensionsToCopy = { };
 
 	//Backup properties
-	private static String syncSource = "/Users/paolobaioni/TestSyncSource";
+	private static String syncSource = "/Users/paolobaioni/TestSource";
 	//private static String syncSource = "/Users/paolobaioni/Documents/Pictures";
 
-	private static String syncDest = "/Users/paolobaioni/TestSyncDest";
+	private static String syncDest = "/Users/paolobaioni/TestDest";
 	//private static String syncDest = "/Volumes/Paolo_backup/Documents/Pictures";
 	
 
 	public static void main(String[] args) throws IOException {
-
+		
 		Copy copy = new Copy(rootFolderPath);
 		for(String extension : extensionsToCopy) {
 			copy.copyFilesByExtension(extension);
 		}
-
-		Backup backup = new Backup(syncSource, syncDest);
-		backup.synchronizeFolders();
+		
+		Test test = new Test(syncSource, syncDest);
+		test.TestBackup();
+		
 
 	}
+	
+
 
 
 

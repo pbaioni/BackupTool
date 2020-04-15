@@ -66,7 +66,7 @@ public class FileHelper {
 	public void updateFileOrFolder(String name) throws IOException {
 
 		File update = new File(absolute(name));
-		update.setLastModified(update.lastModified()+100);
+		update.setLastModified(update.lastModified()+100000000);
 		
 	}
 	

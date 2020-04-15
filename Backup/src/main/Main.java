@@ -2,7 +2,7 @@ package main;
 
 import java.io.IOException;
 
-import action.Copy;
+import main.action.Copy;
 import test.Test;
 
 public class Main {
@@ -28,7 +28,7 @@ public class Main {
 		}
 		
 		Test test = new Test(syncSource, syncDest);
-		test.TestBackup();
+		test.executeAllTests();
 		
 
 	}

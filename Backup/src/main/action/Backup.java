@@ -1,4 +1,4 @@
-package action;
+package main.action;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,6 +26,8 @@ public class Backup {
 	private List<String> commonFiles;
 
 	private List<String> filesToRemove;
+	
+	BackupResult result;
 
 	public Backup() {
 
@@ -34,6 +36,7 @@ public class Backup {
 	public Backup(String syncSource, String syncDest) {
 		this.syncSource = syncSource;
 		this.syncDest = syncDest;
+		result = new BackupResult();
 		File destFolder = new File(syncDest);
 		destFolder.mkdirs();
 		calculateBackupAction();
@@ -67,25 +70,23 @@ public class Backup {
 	}
 	
 	public BackupResult synchronizeFolders() throws IOException {
-		
-		BackupResult result = new BackupResult();
 
 		calculateBackupAction();
 		
 		System.out.println("************************");
-		renameFolders(result);
+		renameFolders();
 		
-		backupNewFiles(result);
+		backupNewFiles();
 
-		updateModifiedFiles(result);
+		updateModifiedFiles();
 
-		removeObsoleteFiles(result);
+		removeObsoleteFiles();
 		
 		return result;
 
 	}
 
-	private void renameFolders(BackupResult result) throws IOException {
+	private void renameFolders() throws IOException {
 		
 		System.out.println("Searching for folders to rename...");
 		
@@ -150,7 +151,7 @@ public class Backup {
 		return trees;
 	}
 
-	private void backupNewFiles(BackupResult result) throws IOException {
+	private void backupNewFiles() throws IOException {
 
 		System.out.println("Searching for new files to backup...");
 
@@ -182,7 +183,7 @@ public class Backup {
 
 	}
 
-	private void updateModifiedFiles(BackupResult result) throws IOException {
+	private void updateModifiedFiles() throws IOException {
 
 		System.out.println("Searching for updated files...");
 
@@ -221,7 +222,7 @@ public class Backup {
 
 	}
 
-	private void removeObsoleteFiles(BackupResult result) throws IOException {
+	private void removeObsoleteFiles() throws IOException {
 
 		System.out.println("Searching for obsolete backup files to remove...");
 
@@ -262,6 +263,10 @@ public class Backup {
 		result.setRemovedFiles(countFiles);
 		result.setRemovedFolders(countFolders);
 
+	}
+	
+	public void clearResults() {
+		result.clear();
 	}
 
 }

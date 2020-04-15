@@ -72,6 +72,7 @@ public class FileTree {
 				+ "]";
 	}
 
+
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
@@ -89,22 +90,9 @@ public class FileTree {
 		if (subfolders == null) {
 			if (other.subfolders != null)
 				return false;
-		}
-		return true && equalSubfolders(other);
-	}
-
-	private boolean equalSubfolders(FileTree other) {
-
-		int matches = 0;
-
-		for (FileTree tree : subfolders) {
-			for (FileTree otherTree : other.getSubfolders()) {
-				if (tree.equals(otherTree)) {
-					matches++;
-				}
-			}
-		}
-		return matches == other.getSubfolders().size();
+		} else if (!subfolders.equals(other.subfolders))
+			return false;
+		return true;
 	}
 
 }

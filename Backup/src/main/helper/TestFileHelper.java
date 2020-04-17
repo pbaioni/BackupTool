@@ -1,4 +1,4 @@
-package main;
+package main.helper;
 
 import java.io.File;
 import java.io.IOException;
@@ -8,7 +8,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 
-public class FileHelper {
+public class TestFileHelper {
 	
 	private String source;
 	
@@ -16,7 +16,7 @@ public class FileHelper {
 	
 	private final String FILE_SEPARATOR = "/";
 	
-	public FileHelper(String source, String dest) {
+	public TestFileHelper(String source, String dest) {
 		this.source = source;
 		this.dest = dest;
 		File sourceFolder = new File(source);

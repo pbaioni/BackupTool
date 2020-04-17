@@ -3,8 +3,8 @@ package test;
 import java.io.IOException;
 
 import main.BackupResult;
-import main.FileHelper;
 import main.action.Backup;
+import main.helper.TestFileHelper;
 
 public class Test {
 
@@ -32,7 +32,7 @@ public class Test {
 		
 		overallResult += "- Simple backup\n";
 		//creating backup objects
-		FileHelper fh = new FileHelper(source, dest);
+		TestFileHelper fh = new TestFileHelper(source, dest);
 
 		
 		//starting test: creating source tree, deleting dest
@@ -50,7 +50,7 @@ public class Test {
 		
 		overallResult += "- Simple update\n";
 		//creating backup objects
-		FileHelper fh = new FileHelper(source, dest);
+		TestFileHelper fh = new TestFileHelper(source, dest);
 
 		
 		//starting test: creating source tree, deleting dest
@@ -76,7 +76,7 @@ public class Test {
 		
 		overallResult += "- Simple update\n";
 		//creating backup objects
-		FileHelper fh = new FileHelper(source, dest);
+		TestFileHelper fh = new TestFileHelper(source, dest);
 
 		
 		//starting test: creating source tree, deleting dest
@@ -97,7 +97,7 @@ public class Test {
 
 		overallResult += "- Simple rename\n";
 		//creating backup objects
-		FileHelper fh = new FileHelper(source, dest);
+		TestFileHelper fh = new TestFileHelper(source, dest);
 
 		
 		//starting test: creating source tree, deleting dest

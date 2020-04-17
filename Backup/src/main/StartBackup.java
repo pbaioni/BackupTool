@@ -2,10 +2,11 @@ package main;
 
 import java.io.IOException;
 
+import main.action.Backup;
 import main.action.Copy;
-import test.Test;
+import main.action.FileTree;
 
-public class Main {
+public class StartBackup {
 
 	//Copy properties
 	private static String rootFolderPath = "/Users/paolobaioni/Documents/Music";
@@ -27,9 +28,8 @@ public class Main {
 			copy.copyFilesByExtension(extension);
 		}
 		
-		Test test = new Test(syncSource, syncDest);
-		test.executeAllTests();
-		
+		Backup backup = new Backup(syncSource, syncDest);
+		backup.synchronizeFolders();
 
 	}
 	

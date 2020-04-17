@@ -3,10 +3,12 @@ package main.action;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class FileTree {
 
@@ -14,7 +16,11 @@ public class FileTree {
 
 	private List<String> fileNames = new ArrayList<String>();
 
-	private List<FileTree> subfolders = new ArrayList<FileTree>();
+	private List<String> subfolderNames = new ArrayList<String>();
+
+	private List<FileTree> subtrees = new ArrayList<FileTree>();
+
+	private long weight = 0;
 
 	public FileTree() {
 
@@ -24,17 +30,20 @@ public class FileTree {
 
 		this.absolutePath = absolutePath;
 
-		List<File> fileTree = Files.walk(Paths.get(absolutePath)).map(p -> new File(p.toString()))
-				.collect(Collectors.toList());
+		File[] fileList = new File(absolutePath).listFiles();
 
-		for (File file : fileTree) {
+		for (File file : fileList) {
 			if (file.isDirectory()) {
 				if (!file.getAbsolutePath().equals(absolutePath)) {
-					subfolders.add(new FileTree(file.getAbsolutePath()));
+					FileTree subfolder = new FileTree(file.getAbsolutePath());
+					subtrees.add(subfolder);
+					subfolderNames.add(subfolder.getAbsolutePath().replace(absolutePath, ""));
+					weight += subfolder.getWeight();
 				}
 			} else {
 				if (!file.isHidden()) {
 					fileNames.add(file.getName());
+					weight += file.length();
 				}
 			}
 		}
@@ -44,34 +53,45 @@ public class FileTree {
 		return absolutePath;
 	}
 
-	public void setAbsolutePath(String absolutePath) {
-		this.absolutePath = absolutePath;
-	}
-
 	public List<String> getFileNames() {
 		return fileNames;
 	}
 
-	public void setFileNames(List<String> fileNames) {
-		this.fileNames = fileNames;
+	public List<String> getSubfolderNames() {
+		return subfolderNames;
 	}
 
-	public List<FileTree> getSubfolders() {
-		return subfolders;
+	public List<FileTree> getSubtrees() {
+		return subtrees;
 	}
 
-	public void setSubfolders(List<FileTree> subfolders) {
-		this.subfolders = subfolders;
+	public long getWeight() {
+		return weight;
 	}
-
-
 
 	@Override
 	public String toString() {
-		return "FileTree [absolutePath=" + absolutePath + ", fileNames=" + fileNames + ", subfolders=" + subfolders
-				+ "]";
+		return "FileTree [absolutePath=" + absolutePath + ", weight=" + weight + ", fileNames=" + fileNames
+				+ ", subfolders=" + subfolderNames + "]";
 	}
 
+	public boolean hasSameStructure(FileTree otherTree) {
+		if (this == otherTree)
+			return true;
+		if (otherTree == null)
+			return false;
+		if (fileNames == null) {
+			if (otherTree.fileNames != null)
+				return false;
+		} else if (!fileNames.equals(otherTree.fileNames))
+			return false;
+		if (subtrees == null) {
+			if (otherTree.subtrees != null)
+				return false;
+		} else if (!subtrees.equals(otherTree.subtrees))
+			return false;
+		return true;
+	}
 
 	@Override
 	public boolean equals(Object obj) {
@@ -87,10 +107,10 @@ public class FileTree {
 				return false;
 		} else if (!fileNames.equals(other.fileNames))
 			return false;
-		if (subfolders == null) {
-			if (other.subfolders != null)
+		if (subtrees == null) {
+			if (other.subtrees != null)
 				return false;
-		} else if (!subfolders.equals(other.subfolders))
+		} else if (!subtrees.equals(other.subtrees))
 			return false;
 		return true;
 	}

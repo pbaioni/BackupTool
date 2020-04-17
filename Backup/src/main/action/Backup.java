@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -27,17 +28,17 @@ public class Backup {
 	private String syncDest;
 
 	private static final String ARCHIVE = "/BackupArchive";
-	
+
 	private static final String LOG_FOLDER = "/Results";
-	
-	private String backupTime;
+
+	private String backupStartTime;
 
 	private List<String> filesToBackup;
 
 	private List<String> commonFiles;
 
 	private List<String> filesToRemove;
-	
+
 	private List<String> log;
 
 	BackupResult result;
@@ -53,7 +54,6 @@ public class Backup {
 		log = new ArrayList<String>();
 		File destFolder = new File(syncDest);
 		destFolder.mkdirs();
-		calculateBackupAction();
 	}
 
 	private void calculateBackupAction() {
@@ -64,21 +64,33 @@ public class Backup {
 		try (Stream<Path> sourcePaths = Files.walk(Paths.get(syncSource));
 				Stream<Path> destPaths = Files.walk(Paths.get(syncDest))) {
 
-			sourceFiles = sourcePaths.map(p -> new File(p.toString())).filter(f -> !f.isHidden())
+			sourceFiles = sourcePaths.map(p -> new File(p.toString())).filter(f -> !f.isHidden()&&!f.getAbsolutePath().equals(syncSource))
 					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toList());
 
-			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.isHidden())
+			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.isHidden()&&!f.getAbsolutePath().equals(syncDest))
 					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toList());
 
+			printToLogAndConsole("Calculating files to backup...");
 			filesToBackup = new ArrayList<String>(sourceFiles);
 			filesToBackup.removeAll(destFiles);
+			filesToBackup.remove("");
+			// copy files existing in source folder but missing in destination folder
+			backupNewFiles();
 
+			printToLogAndConsole("Calculating common files to update...");
 			commonFiles = new ArrayList<String>(sourceFiles);
 			commonFiles.retainAll(destFiles);
+			// update files existing in destination folder but recently modified in source
+			// folder
+			updateModifiedFiles();
 
+			printToLogAndConsole("Calculating obsolete backup files to archive and remove...");
 			filesToRemove = new ArrayList<String>(destFiles);
 			filesToRemove.removeAll(sourceFiles);
 			filesToRemove.removeIf(s -> s.contains(ARCHIVE));
+			// archive files existing in destination folder but removed in source folder
+			removeAndArchiveObsoleteFiles();
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -86,31 +98,27 @@ public class Backup {
 
 	public BackupResult synchronizeFolders() throws IOException {
 
-		Calendar now = Calendar.getInstance();
+		Calendar start = Calendar.getInstance();
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
-		backupTime = sdf.format(now.getTime());
-		
-		calculateBackupAction();
+		backupStartTime = sdf.format(start.getTime());
 
-		printToLogAndConsole("********* " + backupTime + " *********");
+		printToLogAndConsole("********* Start: " + backupStartTime + " *********");
 		printToLogAndConsole("Synchronising folders " + syncSource + " and " + syncDest + "");
 		printToLogAndConsole("");
 
-		// search for folders simply renamed (no file added or deleted) and rename them
-		renameFolders();
+		calculateBackupAction();
 
-		// copy files existing in source folder but missing in destination folder
-		backupNewFiles();
-
-		// update files existing in destination folder but recently modified in source
-		// folder
-		updateModifiedFiles();
-
-		// archive files existing in destination folder but removed in source folder
-		removeAndArchiveObsoleteFiles();
-
-		printToLogAndConsole("Done");
+		Calendar end = Calendar.getInstance();
+		String backupEndTime = sdf.format(end.getTime());
+		Duration diff = Duration.between(start.toInstant(), end.toInstant());
+		long hours = diff.toHours();
+		long minutes = diff.toMinutes() - 60*hours;
+		long seconds = diff.getSeconds() - 60*minutes - 3600*hours;
 		
+		String duration = hours + " hours, " + minutes + " minutes, " + seconds + " seconds";
+
+		printToLogAndConsole("********* End: " + backupEndTime + " ( " + duration + " )  *********");
+
 		writeLog();
 
 		return result;
@@ -130,7 +138,7 @@ public class Backup {
 		} else {
 			printToLogAndConsole(renamed + " folders renamed");
 		}
-		
+
 		printToLogAndConsole("");
 
 		result.setRenamedFolders(renamed);
@@ -193,31 +201,34 @@ public class Backup {
 
 	private void backupNewFiles() throws IOException {
 
-		printToLogAndConsole("Searching for new files to backup...");
-
 		int countFiles = 0;
 		int countFolders = 0;
-		for (String fileToBackup : filesToBackup) {
-			File source = new File(syncSource + fileToBackup);
-			if (source.isDirectory()) {
-				printToLogAndConsole("Creating folder " + fileToBackup);
-				Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
-						StandardCopyOption.REPLACE_EXISTING);
-				countFolders++;
-			} else {
-				printToLogAndConsole("Saving " + fileToBackup);
-				Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
-						StandardCopyOption.REPLACE_EXISTING);
-				countFiles++;
-			}
-		}
-
-		if (countFiles == 0 && countFolders == 0) {
+		if (filesToBackup.isEmpty()) {
+			
 			printToLogAndConsole("Nothing to backup");
+			
 		} else {
+
+			printToLogAndConsole("Starting to copy...");
+			
+			for (String fileToBackup : filesToBackup) {
+				File source = new File(syncSource + fileToBackup);
+				if (source.isDirectory()) {
+					printToLogAndConsole("Creating folder " + fileToBackup);
+					Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+							StandardCopyOption.REPLACE_EXISTING);
+					countFolders++;
+				} else {
+					printToLogAndConsole("Saving " + fileToBackup);
+					Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+							StandardCopyOption.REPLACE_EXISTING);
+					countFiles++;
+				}
+			}
+
 			printToLogAndConsole(countFiles + " files and " + countFolders + " folders saved");
 		}
-		
+
 		printToLogAndConsole("");
 
 		result.setCopiedFiles(countFiles);
@@ -227,38 +238,48 @@ public class Backup {
 
 	private void updateModifiedFiles() throws IOException {
 
-		printToLogAndConsole("Searching for updated files...");
-
 		int countFiles = 0;
 		int countFolders = 0;
 
-		for (String fileToUpdate : commonFiles) {
+		if (commonFiles.isEmpty()) {
+			
+			printToLogAndConsole("No file to update");
+			
+		} else {
+			
+			printToLogAndConsole("Starting to update...");
+			
+			for (String fileToUpdate : commonFiles) {
 
-			File source = new File(syncSource + fileToUpdate);
-			File dest = new File(syncDest + fileToUpdate);
-			boolean updated = source.lastModified() > dest.lastModified();
+				File source = new File(syncSource + fileToUpdate);
+				File dest = new File(syncDest + fileToUpdate);
+				boolean updated = source.lastModified() > dest.lastModified();
 
-			if (updated) {
-				if (!dest.isDirectory()) {
-					printToLogAndConsole("Updating " + syncDest + fileToUpdate);
-					Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
-							StandardCopyOption.REPLACE_EXISTING);
-					countFiles++;
-				} else {
-					printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
-					dest.setLastModified(source.lastModified());
-					countFolders++;
+				if (updated) {
+					if (!dest.isDirectory()) {
+						printToLogAndConsole("Updating " + syncDest + fileToUpdate);
+						Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
+								StandardCopyOption.REPLACE_EXISTING);
+						countFiles++;
+					} else {
+						printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
+						dest.setLastModified(source.lastModified());
+						countFolders++;
+					}
 				}
 			}
-
+			
+			if (countFiles == 0 && countFolders == 0) {
+				
+				printToLogAndConsole("No file to update");
+				
+			} else {
+				
+				printToLogAndConsole(countFiles + " files and " + countFolders + " folders updated");
+				
+			}
 		}
 
-		if (countFiles == 0 && countFolders == 0) {
-			printToLogAndConsole("No update found");
-		} else {
-			printToLogAndConsole(countFiles + " files and " + countFolders + " folders updated");
-		}
-		
 		printToLogAndConsole("");
 
 		result.setUpdatedFiles(countFiles);
@@ -268,22 +289,25 @@ public class Backup {
 
 	private void removeAndArchiveObsoleteFiles() throws IOException {
 
-		printToLogAndConsole("Searching for obsolete backup files to archive and remove...");
-
 		List<String> foldersToRemove = new ArrayList<String>();
 
 		int countFiles = 0;
 		int countFolders = 0;
+		if (filesToRemove.isEmpty()) {
 
-		// zipping and deleting obsolete files
-		if (!filesToRemove.isEmpty()) {
+			printToLogAndConsole("Nothing to remove");
+
+		} else {
+			// zipping and deleting obsolete files
+			
+			printToLogAndConsole("Starting to archive and remove files...");
 
 			// creating archive folder
 			File archive = new File(syncDest + ARCHIVE);
 			archive.mkdirs();
 
 			// zipping file for archive
-			FileOutputStream fos = new FileOutputStream(syncDest + ARCHIVE + "/ObsoleteFiles_" + backupTime + ".zip");
+			FileOutputStream fos = new FileOutputStream(syncDest + ARCHIVE + "/ObsoleteFiles_" + backupStartTime + ".zip");
 			ZipOutputStream zipOut = new ZipOutputStream(fos);
 
 			for (String fileToRemoveName : filesToRemove) {
@@ -293,7 +317,7 @@ public class Backup {
 				if (!fileToRemove.isDirectory()) {
 					printToLogAndConsole("Removing and archiving " + syncDest + fileToRemoveName);
 
-					ZipEntry zipEntry = new ZipEntry(backupTime + "/" + fileToRemove.getName());
+					ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
 					zipOut.putNextEntry(zipEntry);
 					zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
 					zipOut.closeEntry();
@@ -321,14 +345,10 @@ public class Backup {
 
 			}
 
+			printToLogAndConsole(countFiles + " files and " + countFolders + " folders removed");
+
 		}
 
-		if (countFiles == 0 && countFolders == 0) {
-			printToLogAndConsole("Nothing to remove");
-		} else {
-			printToLogAndConsole(countFiles + " files and " + countFolders + " folders removed");
-		}
-		
 		printToLogAndConsole("");
 
 		result.setRemovedFiles(countFiles);
@@ -339,21 +359,21 @@ public class Backup {
 	public void clearResults() {
 		result.clear();
 	}
-	
+
 	private void printToLogAndConsole(String line) {
-		
+
 		System.out.println(line);
-		
+
 		log.add(line);
 	}
-	
+
 	private void writeLog() {
-		
+
 		File logs = new File(syncDest + ARCHIVE + LOG_FOLDER);
 		logs.mkdirs();
-		String logPath = syncDest + ARCHIVE + LOG_FOLDER + "/backupResult_"+ backupTime + ".txt";
+		String logPath = syncDest + ARCHIVE + LOG_FOLDER + "/backupResult_" + backupStartTime + ".txt";
 		FileHelper.writeLinesInFile(logPath, log);
-		
+
 	}
 
 }

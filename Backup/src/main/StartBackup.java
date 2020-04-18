@@ -2,58 +2,89 @@ package main;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import main.action.Backup;
-import main.action.Copy;
 
 public class StartBackup {
 
-	// Copy properties
-	private static String rootFolderPath = "/Users/paolobaioni/Documents/Music";
-
-	private static String[] extensionsToCopy = {};
-
-	// Backup properties
-	private static String testSyncSource = "/Users/paolobaioni/TestSource";
-	private static String syncSource = "/Users/paolobaioni/Documents";
-
-	private static String testSyncDest = "/Users/paolobaioni/TestDest";
-	private static String syncDest = "/Volumes/Paolo_backup/Documents";
+	private static String syncSource = "";
+	private static String syncDest = "";
+	private static BackupOptions backupMode;
+	private static List<BackupOptions> backupActions = new ArrayList<BackupOptions>();
 
 	public static void main(String[] args) throws IOException {
 
-		boolean isTest = true;
+		if (args.length == 3) {
 
-		for (String arg : args) {
+			// assign arguments
+			getOptions(args[0]);
+			syncSource = args[1];
+			syncDest = args[2];
 
-			isTest = false;
-
-			if (arg.equals("all")) {
-
+		}
+		if (!backupActions.isEmpty()) {
+			if (backupMode.equals(BackupOptions.SUBFOLDERS_MODE)) {
 				File root = new File(syncSource);
 				File[] fileList = root.listFiles();
-				for(File file : fileList) {
-					if(file.isDirectory()) {
-						Backup backup = new Backup(syncSource + "/" + file.getName(), syncDest + "/" + file.getName());
-						backup.synchronizeFolders();
+				for (File file : fileList) {
+					if (file.isDirectory()) {
+						Backup backup = new Backup(syncSource + File.separator + file.getName(),
+								syncDest + File.separator + file.getName());
+						backup.synchronizeFolders(backupActions);
 					}
 				}
-
+			} else if (backupMode.equals(BackupOptions.ROOT_FOLDER_MODE)) {
+				Backup backup = new Backup(syncSource, syncDest);
+				backup.synchronizeFolders(backupActions);
 			} else {
-				Backup backup = new Backup(syncSource + "/" + arg, syncDest + "/" + arg);
-				backup.synchronizeFolders();
+
+				printHelp();
 			}
 		}
 
-		if (isTest) {
-			Copy copy = new Copy(rootFolderPath);
-			for (String extension : extensionsToCopy) {
-				copy.copyFilesByExtension(extension);
-			}
+	}
 
-			Backup backup = new Backup(testSyncSource, testSyncDest);
-			backup.synchronizeFolders();
+	private static void getOptions(String firstArg) {
+
+		if (firstArg.startsWith("-s")) {
+			backupMode = BackupOptions.SUBFOLDERS_MODE;
+		} else if (firstArg.startsWith("-r")) {
+			backupMode = BackupOptions.ROOT_FOLDER_MODE;
+		} else {
+			printHelp();
+			return;
 		}
+
+		if (firstArg.contains("c")) {
+			backupActions.add(BackupOptions.COPY);
+		}
+
+		if (firstArg.contains("u")) {
+			backupActions.add(BackupOptions.UPDATE);
+		}
+
+		if (firstArg.contains("a")) {
+			backupActions.add(BackupOptions.ARCHIVE);
+		}
+
+		if (firstArg.contains("d")) {
+			backupActions.add(BackupOptions.DELETE);
+		}
+
+	}
+
+	private static void printHelp() {
+
+		System.out.println("Help for backup script, this script needs 3 arguments:");
+		System.out.println("");
+		System.out.println("ex: bash backup.sh -s path1 path2");
+		System.out.println(
+				"this command backups each subfolder of path1 into path2, a backup result will be stored for each subfolder");
+		System.out.println("");
+		System.out.println("ex: bash backup.sh -r path1 path2");
+		System.out.println("this command backups path1 into path2, a unique backup result will be stored into path2");
 
 	}
 

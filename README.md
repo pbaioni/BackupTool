@@ -5,9 +5,15 @@ Once the project has been cloned and built, you should use the backup tool throu
 
 java -jar yourPathToJar/backupTool-1.0.jar [mode+options] [sourcePath] [destPath]
 
-Modes: [mandatory -s || -r] -s: performs a backup for each subfolder of source into dest. Each folder in destPath will have a specific backup result file -r: performs a backup of the first level of source into dest. A unique backup result file will be stored into destPath
+Modes: [mandatory -s || -r] 
+-s: performs a backup for each subfolder of source into dest. Each folder in destPath will have a specific backup result file 
+-r: performs a backup of the first level of source into dest. A unique backup result file will be stored into destPath
 
-"Options: [optional] c: copy new files of the source into destination u: update in dest all the files existing in both source and dest if source has a more recent version a: archive (zip format) dest files no more existing in source d: delete dest files no more existing in source
+"Options: [optional] 
+c: copy new files of the source into destination 
+u: update in dest all the files existing in both source and dest if source has a more recent version 
+a: archive (zip format) dest files no more existing in source 
+d: delete dest files no more existing in source
 
 Examples:
 

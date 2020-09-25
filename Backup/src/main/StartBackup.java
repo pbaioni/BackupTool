@@ -26,22 +26,24 @@ public class StartBackup {
 		} else {
 			printHelp();
 		}
-		
-		
+
 		if (!backupActions.isEmpty()) {
+
+			// backup root folder in any case
+			Backup backup = new Backup(syncSource, syncDest);
+			backup.synchronizeFolders(backupActions);
+
+			// backup subfolders if subfolders_mode is set
 			if (backupMode.equals(BackupOptions.SUBFOLDERS_MODE)) {
 				File root = new File(syncSource);
 				File[] fileList = root.listFiles();
 				for (File file : fileList) {
 					if (file.isDirectory()) {
-						Backup backup = new Backup(syncSource + File.separator + file.getName(),
+						Backup folderBackup = new Backup(syncSource + File.separator + file.getName(),
 								syncDest + File.separator + file.getName());
-						backup.synchronizeFolders(backupActions);
+						folderBackup.synchronizeFolders(backupActions);
 					}
 				}
-			} else if (backupMode.equals(BackupOptions.ROOT_FOLDER_MODE)) {
-				Backup backup = new Backup(syncSource, syncDest);
-				backup.synchronizeFolders(backupActions);
 			}
 		}
 
@@ -80,14 +82,17 @@ public class StartBackup {
 		System.out.println("");
 		System.out.println("Help for backup script, this script needs 3 arguments:");
 		System.out.println("ex: bash backup.sh [mode+options] [source] [dest]");
-		
+
 		System.out.println("");
 		System.out.println("Modes: [mandatory -s || -r]");
-		System.out.println("-s: performs a backup for each subfolder of source into dest. Each folder in path2 will have a specific backup result");
-		System.out.println("-r: performs a backup of path1 into path2. A unique backup result will be stored into path2");
+		System.out.println(
+				"-s: performs a backup for each subfolder of source into dest. Each folder in path2 will have a specific backup result");
+		System.out
+				.println("-r: performs a backup of path1 into path2. A unique backup result will be stored into path2");
 		System.out.println("Options: [optional]");
 		System.out.println("c: copy new files of the source into destination");
-		System.out.println("u: update in dest all the files existing in both source and dest if source has a more recent version");
+		System.out.println(
+				"u: update in dest all the files existing in both source and dest if source has a more recent version");
 		System.out.println("a: archive (zip format) dest files no more existing in source");
 		System.out.println("d: delete dest files no more existing in source");
 
@@ -95,8 +100,6 @@ public class StartBackup {
 		System.out.println("ex: bash backup.sh -scuad path1 path2");
 		System.out.println("ex: bash backup.sh -scu path1 path2");
 		System.out.println("ex: bash backup.sh -rcd path1 path2");
-
-		
 
 	}
 

@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -102,9 +103,17 @@ public class Backup {
 				printToLogAndConsole("Calculating obsolete backup files to archive and remove...");
 				filesToRemove = new ArrayList<String>(destFiles);
 				filesToRemove.removeAll(sourceFiles);
-				filesToRemove.removeIf(s -> s.contains(ARCHIVE));
-				// archive files existing in destination folder but removed in source folder
-				removeAndArchiveObsoleteFiles(doArchive, doDelete);
+				// filesToRemove.removeIf(s -> s.contains(ARCHIVE));
+			}
+			
+			// archive files existing in destination folder but removed in source folder
+			if (doArchive) {
+				archiveObsoleteFiles();
+			}
+			
+			if (doDelete) {
+				System.out.println("Delete: " + filesToRemove);
+				removeObsoleteFiles();
 			}
 
 		} catch (IOException e) {
@@ -136,12 +145,11 @@ public class Backup {
 		printToLogAndConsole("********* End: " + backupEndTime + " ( " + duration + " )  *********");
 		printToLogAndConsole("");
 
-		writeLog();
+		// writeLog();
 
 		return result;
 
 	}
-
 
 	private void backupNewFiles() throws IOException {
 
@@ -231,28 +239,22 @@ public class Backup {
 
 	}
 
-	private void removeAndArchiveObsoleteFiles(boolean archive, boolean delete) throws IOException {
+	private void archiveObsoleteFiles() throws IOException {
 
-		List<String> foldersToRemove = new ArrayList<String>();
-
-		int countFiles = 0;
-		int countFolders = 0;
 		if (filesToRemove.isEmpty()) {
 
 			printToLogAndConsole("Nothing to remove");
 
 		} else {
+
 			// zipping and deleting obsolete files
+			printToLogAndConsole("Starting to archive files...");
 
-			printToLogAndConsole("Starting to archive and remove files...");
+			// creating archive folder
+			File archiveFile = new File(syncDest + ARCHIVE);
+			archiveFile.mkdirs();
 
-			if (archive) {
-				// creating archive folder
-				File archiveFile = new File(syncDest + ARCHIVE);
-				archiveFile.mkdirs();
-			}
-
-			// zipping file for archive
+			// opening streams
 			FileOutputStream fos = new FileOutputStream(
 					syncDest + ARCHIVE + "/ObsoleteFiles_" + backupStartTime + ".zip");
 			ZipOutputStream zipOut = new ZipOutputStream(fos);
@@ -262,19 +264,48 @@ public class Backup {
 				File fileToRemove = new File(syncDest + fileToRemoveName);
 
 				if (!fileToRemove.isDirectory()) {
-					printToLogAndConsole("Removing and archiving " + syncDest + fileToRemoveName);
+					printToLogAndConsole("Archiving " + syncDest + fileToRemoveName);
 
-					if (archive) {
-						ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
-						zipOut.putNextEntry(zipEntry);
-						zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
-						zipOut.closeEntry();
-					}
+					// adding file to archive zip
+					ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
+					zipOut.putNextEntry(zipEntry);
+					zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
+					zipOut.closeEntry();
+				}
+			}
 
-					if (delete) {
-						// deleting file
-						fileToRemove.delete();
-					}
+			// closing streams
+			zipOut.close();
+			fos.close();
+
+		}
+	}
+
+	private void removeObsoleteFiles() throws IOException {
+
+		List<String> foldersToRemove = new ArrayList<String>();
+
+		int countFiles = 0;
+		int countFolders = 0;
+
+		if (filesToRemove.isEmpty()) {
+
+			printToLogAndConsole("Nothing to remove");
+
+		} else {
+
+			// deleting obsolete files
+			printToLogAndConsole("Starting to remove files...");
+
+			for (String fileToRemoveName : filesToRemove) {
+
+				File fileToRemove = new File(syncDest + fileToRemoveName);
+
+				if (!fileToRemove.isDirectory()) {
+					printToLogAndConsole("Removing " + syncDest + fileToRemoveName);
+
+					// deleting file
+					fileToRemove.delete();
 
 					countFiles++;
 				} else {
@@ -283,22 +314,21 @@ public class Backup {
 				}
 
 			}
+		}
 
-			zipOut.close();
-			fos.close();
+		// ordering list by entry length (longer items first)
+		foldersToRemove.sort(Comparator.comparingInt(String::length));
 
-			// deleting obsolete folders
-			for (String folderToRemove : foldersToRemove) {
+		// deleting obsolete folders
+		for (String folderToRemove : foldersToRemove) {
 
-				File dest = new File(syncDest + folderToRemove);
-				printToLogAndConsole("Removing folder " + syncDest + folderToRemove);
-				dest.delete();
-
-			}
-
-			printToLogAndConsole(countFiles + " files and " + countFolders + " folders removed");
+			File dest = new File(syncDest + folderToRemove);
+			printToLogAndConsole("Removing folder " + syncDest + folderToRemove);
+			dest.delete();
 
 		}
+
+		printToLogAndConsole(countFiles + " files and " + countFolders + " folders removed");
 
 		printToLogAndConsole("");
 

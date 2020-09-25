@@ -11,6 +11,7 @@ import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -74,11 +75,10 @@ public class Backup {
 				Stream<Path> destPaths = Files.walk(Paths.get(syncDest))) {
 
 			sourceFiles = sourcePaths.map(p -> new File(p.toString()))
-					.filter(f -> !f.isHidden() && !f.getAbsolutePath().equals(syncSource))
+					.filter(f -> !f.getAbsolutePath().equals(syncSource))
 					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toList());
 
-			destFiles = destPaths.map(p -> new File(p.toString()))
-					.filter(f -> !f.isHidden() && !f.getAbsolutePath().equals(syncDest))
+			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.getAbsolutePath().equals(syncDest))
 					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toList());
 
 			if (doCopy) {
@@ -103,16 +103,15 @@ public class Backup {
 				printToLogAndConsole("Calculating obsolete backup files to archive and remove...");
 				filesToRemove = new ArrayList<String>(destFiles);
 				filesToRemove.removeAll(sourceFiles);
-				// filesToRemove.removeIf(s -> s.contains(ARCHIVE));
+				filesToRemove.removeIf(s -> s.contains(ARCHIVE));
 			}
-			
+
 			// archive files existing in destination folder but removed in source folder
 			if (doArchive) {
 				archiveObsoleteFiles();
 			}
-			
+
 			if (doDelete) {
-				System.out.println("Delete: " + filesToRemove);
 				removeObsoleteFiles();
 			}
 
@@ -164,17 +163,23 @@ public class Backup {
 			printToLogAndConsole("Starting to copy...");
 
 			for (String fileToBackup : filesToBackup) {
-				File source = new File(syncSource + fileToBackup);
-				if (source.isDirectory()) {
-					printToLogAndConsole("Creating folder " + fileToBackup);
-					Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
-							StandardCopyOption.REPLACE_EXISTING);
-					countFolders++;
-				} else {
-					printToLogAndConsole("Saving " + fileToBackup);
-					Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
-							StandardCopyOption.REPLACE_EXISTING);
-					countFiles++;
+				try {
+					File source = new File(syncSource + fileToBackup);
+					if (source.isDirectory()) {
+						printToLogAndConsole("Creating folder " + fileToBackup);
+
+						Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+								StandardCopyOption.REPLACE_EXISTING);
+						countFolders++;
+					} else {
+						printToLogAndConsole("Saving " + fileToBackup);
+
+						Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+								StandardCopyOption.REPLACE_EXISTING);
+						countFiles++;
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
 
@@ -208,15 +213,19 @@ public class Backup {
 				boolean updated = source.lastModified() > dest.lastModified();
 
 				if (updated) {
-					if (!dest.isDirectory()) {
-						printToLogAndConsole("Updating " + syncDest + fileToUpdate);
-						Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
-								StandardCopyOption.REPLACE_EXISTING);
-						countFiles++;
-					} else {
-						printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
-						dest.setLastModified(source.lastModified());
-						countFolders++;
+					try {
+						if (!dest.isDirectory()) {
+							printToLogAndConsole("Updating " + syncDest + fileToUpdate);
+							Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
+									StandardCopyOption.REPLACE_EXISTING);
+							countFiles++;
+						} else {
+							printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
+							dest.setLastModified(source.lastModified());
+							countFolders++;
+						}
+					} catch (Exception e) {
+						e.printStackTrace();
 					}
 				}
 			}
@@ -260,17 +269,19 @@ public class Backup {
 			ZipOutputStream zipOut = new ZipOutputStream(fos);
 
 			for (String fileToRemoveName : filesToRemove) {
+				try {
+					File fileToRemove = new File(syncDest + fileToRemoveName);
+					if (!fileToRemove.isDirectory()) {
+						printToLogAndConsole("Archiving " + syncDest + fileToRemoveName);
 
-				File fileToRemove = new File(syncDest + fileToRemoveName);
-
-				if (!fileToRemove.isDirectory()) {
-					printToLogAndConsole("Archiving " + syncDest + fileToRemoveName);
-
-					// adding file to archive zip
-					ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
-					zipOut.putNextEntry(zipEntry);
-					zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
-					zipOut.closeEntry();
+						// adding file to archive zip
+						ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
+						zipOut.putNextEntry(zipEntry);
+						zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
+						zipOut.closeEntry();
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
 
@@ -298,19 +309,22 @@ public class Backup {
 			printToLogAndConsole("Starting to remove files...");
 
 			for (String fileToRemoveName : filesToRemove) {
+				try {
+					File fileToRemove = new File(syncDest + fileToRemoveName);
 
-				File fileToRemove = new File(syncDest + fileToRemoveName);
+					if (!fileToRemove.isDirectory()) {
+						printToLogAndConsole("Removing " + syncDest + fileToRemoveName);
 
-				if (!fileToRemove.isDirectory()) {
-					printToLogAndConsole("Removing " + syncDest + fileToRemoveName);
+						// deleting file
+						fileToRemove.delete();
 
-					// deleting file
-					fileToRemove.delete();
-
-					countFiles++;
-				} else {
-					foldersToRemove.add(fileToRemoveName);
-					countFolders++;
+						countFiles++;
+					} else {
+						foldersToRemove.add(fileToRemoveName);
+						countFolders++;
+					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 
 			}
@@ -318,13 +332,17 @@ public class Backup {
 
 		// ordering list by entry length (longer items first)
 		foldersToRemove.sort(Comparator.comparingInt(String::length));
+		Collections.reverse(foldersToRemove);
 
 		// deleting obsolete folders
 		for (String folderToRemove : foldersToRemove) {
-
-			File dest = new File(syncDest + folderToRemove);
-			printToLogAndConsole("Removing folder " + syncDest + folderToRemove);
-			dest.delete();
+			try {
+				File dest = new File(syncDest + folderToRemove);
+				printToLogAndConsole("Removing folder " + syncDest + folderToRemove);
+				dest.delete();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 
 		}
 

@@ -29,9 +29,11 @@ public class StartBackup {
 
 		if (!backupActions.isEmpty()) {
 
-			// backup root folder in any case
-			Backup backup = new Backup(syncSource, syncDest);
-			backup.synchronizeFolders(backupActions);
+			if (backupMode.equals(BackupOptions.ROOT_FOLDER_MODE)) {
+				// backup root folder in any case
+				Backup backup = new Backup(syncSource, syncDest);
+				backup.synchronizeFolders(backupActions);
+			}
 
 			// backup subfolders if subfolders_mode is set
 			if (backupMode.equals(BackupOptions.SUBFOLDERS_MODE)) {

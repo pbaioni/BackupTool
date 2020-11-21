@@ -1,8 +1,10 @@
 package main.action;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,7 +29,7 @@ import main.helper.FileHelper;
 import main.helper.TimeHelper;
 
 public class Backup {
-	
+
 	private static final Logger LOGGER = Logger.getLogger(Backup.class.getName());
 
 	private String syncSource;
@@ -50,6 +52,8 @@ public class Backup {
 
 	BackupResult result;
 
+	private BufferedReader answerReader;
+
 	public Backup() {
 
 	}
@@ -62,9 +66,9 @@ public class Backup {
 		File destFolder = new File(syncDest);
 		destFolder.mkdirs();
 	}
-	
+
 	public BackupResult synchronizeFolders(List<BackupOptions> options) throws IOException {
-		
+
 		backupStartTime = TimeHelper.getNow();
 		printToLogAndConsole("********* Start: " + TimeHelper.format(backupStartTime) + " *********");
 		printToLogAndConsole("Synchronising folders " + syncSource + " and " + syncDest + "");
@@ -73,16 +77,17 @@ public class Backup {
 		execute(options);
 
 		Calendar end = Calendar.getInstance();
-		printToLogAndConsole("********* End: " + TimeHelper.format(end) + " ( " + TimeHelper.getElapsedTime(backupStartTime, end) + " )  *********");
+		printToLogAndConsole("********* End: " + TimeHelper.format(end) + " ( "
+				+ TimeHelper.getElapsedTime(backupStartTime, end) + " )  *********");
 		printToLogAndConsole("");
 
 		writeLog();
-		
+
 		return result;
 
 	}
 
-	private void execute(List<BackupOptions> backupActions) {
+	private void execute(List<BackupOptions> backupActions) throws IOException {
 
 		boolean doCopy = backupActions.contains(BackupOptions.COPY);
 
@@ -98,29 +103,33 @@ public class Backup {
 		try (Stream<Path> sourcePaths = Files.walk(Paths.get(syncSource));
 				Stream<Path> destPaths = Files.walk(Paths.get(syncDest))) {
 
+			answerReader = new BufferedReader(new InputStreamReader(System.in));
+
 			LOGGER.info("Evaluating source file tree...");
-			
+
 			sourceFiles = sourcePaths.map(p -> new File(p.toString()))
 					.filter(f -> !f.getAbsolutePath().equals(syncSource))
 					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toSet());
-			
+
 			LOGGER.info("Source file tree: " + sourceFiles);
 
 			LOGGER.info("Evaluating destination file tree...");
-			
+
 			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.getAbsolutePath().equals(syncDest))
 					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toSet());
 
 			LOGGER.info("Dest file tree: " + destFiles);
-			
+
 			if (doCopy) {
 				printToLogAndConsole("Calculating files to copy...");
 				filesToCopy = new TreeSet<String>(sourceFiles);
 				filesToCopy.removeAll(destFiles);
 				filesToCopy.remove("");
 				LOGGER.info("Files to copy: " + filesToCopy);
-				// copy files existing in source folder but missing in destination folder
-				copyNewFiles();
+				if (getConfirmation("copy", filesToCopy)) {
+					// copy files existing in source folder but missing in destination folder
+					copyNewFiles();
+				}
 			}
 
 			if (doUpdate) {
@@ -128,9 +137,12 @@ public class Backup {
 				commonFiles = new TreeSet<String>(sourceFiles);
 				commonFiles.retainAll(destFiles);
 				LOGGER.info("Common files: " + commonFiles);
-				// update files existing in destination folder but recently modified in source
-				// folder
-				updateModifiedFiles();
+
+				if (getConfirmation("update", commonFiles)) {
+					// update files existing in destination folder but recently modified in source
+					// folder
+					updateModifiedFiles();
+				}
 			}
 
 			if (doArchive || doDelete) {
@@ -143,18 +155,23 @@ public class Backup {
 
 			// archive files existing in destination folder but removed in source folder
 			if (doArchive) {
-				archiveObsoleteFiles();
+				if (getConfirmation("archive", filesToRemove)) {
+					archiveObsoleteFiles();
+				}
 			}
 
 			if (doDelete) {
-				removeObsoleteFiles();
+				if (getConfirmation("delete", filesToRemove)) {
+					removeObsoleteFiles();
+				}
 			}
 
 		} catch (IOException e) {
 			e.printStackTrace();
+		} finally {
+			answerReader.close();
 		}
 	}
-
 
 	private void copyNewFiles() throws IOException {
 
@@ -281,7 +298,8 @@ public class Backup {
 						printToLogAndConsole("Archiving " + syncDest + fileToRemoveName);
 
 						// adding file to archive zip
-						ZipEntry zipEntry = new ZipEntry(TimeHelper.format(backupStartTime) + "/" + fileToRemove.getName());
+						ZipEntry zipEntry = new ZipEntry(
+								TimeHelper.format(backupStartTime) + "/" + fileToRemove.getName());
 						zipOut.putNextEntry(zipEntry);
 						zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
 						zipOut.closeEntry();
@@ -363,6 +381,45 @@ public class Backup {
 
 	public void clearResults() {
 		result.clear();
+	}
+
+	private boolean getConfirmation(String action, TreeSet<String> files) throws IOException {
+
+		System.out.println(filesToCopy.size() + " files to " + action + ", do you want to proceed?");
+		System.out.println("y=yes, n=no, s=show files");
+
+		String line = answerReader.readLine();
+
+		switch (line) {
+		case "y":
+			return true;
+		case "s":
+			return showFiles(action, files);
+		default:
+			System.out.println(action + " aborted");
+			return false;
+		}
+	}
+
+	private boolean showFiles(String action, TreeSet<String> files) throws IOException {
+
+		for (String file : files) {
+			System.out.println(file);
+		}
+
+		System.out.println("Do you want to proceed?");
+		System.out.println("y=yes, n=no");
+
+		String line = answerReader.readLine();
+
+		switch (line) {
+		case "y":
+			return true;
+		default:
+			System.out.println(action + " aborted");
+			return false;
+		}
+
 	}
 
 	private void printToLogAndConsole(String line) {

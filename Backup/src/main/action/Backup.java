@@ -46,6 +46,8 @@ public class Backup {
 
 	private TreeSet<String> commonFiles;
 
+	private TreeSet<String> filesToUpdate;
+
 	private TreeSet<String> filesToRemove;
 
 	private List<String> log;
@@ -105,27 +107,28 @@ public class Backup {
 
 			answerReader = new BufferedReader(new InputStreamReader(System.in));
 
-			LOGGER.info("Evaluating source file tree...");
+			System.out.println("Evaluating source file tree...");
 
 			sourceFiles = sourcePaths.map(p -> new File(p.toString()))
 					.filter(f -> !f.getAbsolutePath().equals(syncSource))
+					.filter(f -> !f.getAbsolutePath().contains(".DS_Store"))
 					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toSet());
 
-			LOGGER.info("Source file tree: " + sourceFiles);
+			// LOGGER.info("Source file tree: " + sourceFiles);
 
-			LOGGER.info("Evaluating destination file tree...");
+			System.out.println("Evaluating destination file tree...");
 
 			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.getAbsolutePath().equals(syncDest))
+					.filter(f -> !f.getAbsolutePath().contains(".DS_Store"))
 					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toSet());
 
-			LOGGER.info("Dest file tree: " + destFiles);
+			// LOGGER.info("Dest file tree: " + destFiles);
 
 			if (doCopy) {
 				printToLogAndConsole("Calculating files to copy...");
 				filesToCopy = new TreeSet<String>(sourceFiles);
 				filesToCopy.removeAll(destFiles);
 				filesToCopy.remove("");
-				LOGGER.info("Files to copy: " + filesToCopy);
 				if (getConfirmation("copy", filesToCopy)) {
 					// copy files existing in source folder but missing in destination folder
 					copyNewFiles();
@@ -134,11 +137,19 @@ public class Backup {
 
 			if (doUpdate) {
 				printToLogAndConsole("Calculating common files to update...");
+				filesToUpdate = new TreeSet<String>();
 				commonFiles = new TreeSet<String>(sourceFiles);
 				commonFiles.retainAll(destFiles);
-				LOGGER.info("Common files: " + commonFiles);
+				for (String fileToUpdate : commonFiles) {
 
-				if (getConfirmation("update", commonFiles)) {
+					File source = new File(syncSource + fileToUpdate);
+					File dest = new File(syncDest + fileToUpdate);
+					if (source.lastModified() > dest.lastModified()) {
+						filesToUpdate.add(fileToUpdate);
+					}
+				}
+
+				if (getConfirmation("update", filesToUpdate)) {
 					// update files existing in destination folder but recently modified in source
 					// folder
 					updateModifiedFiles();
@@ -150,7 +161,6 @@ public class Backup {
 				filesToRemove = new TreeSet<String>(destFiles);
 				filesToRemove.removeAll(sourceFiles);
 				filesToRemove.removeIf(s -> s.contains(ARCHIVE_FOLDER));
-				LOGGER.info("Files to archive and delete: " + filesToRemove);
 			}
 
 			// archive files existing in destination folder but removed in source folder
@@ -229,39 +239,34 @@ public class Backup {
 
 			printToLogAndConsole("Starting to update...");
 
-			for (String fileToUpdate : commonFiles) {
-
+			for (String fileToUpdate : filesToUpdate) {
 				File source = new File(syncSource + fileToUpdate);
 				File dest = new File(syncDest + fileToUpdate);
-				boolean updated = source.lastModified() > dest.lastModified();
-
-				if (updated) {
-					try {
-						if (!dest.isDirectory()) {
-							printToLogAndConsole("Updating " + syncDest + fileToUpdate);
-							Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
-									StandardCopyOption.REPLACE_EXISTING);
-							countFiles++;
-						} else {
-							printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
-							dest.setLastModified(source.lastModified());
-							countFolders++;
-						}
-					} catch (Exception e) {
-						e.printStackTrace();
+				try {
+					if (!dest.isDirectory()) {
+						printToLogAndConsole("Updating " + syncDest + fileToUpdate);
+						Files.copy(Paths.get(syncSource + fileToUpdate), Paths.get(syncDest + fileToUpdate),
+								StandardCopyOption.REPLACE_EXISTING);
+						countFiles++;
+					} else {
+						printToLogAndConsole("Updating modification date for folder " + syncDest + fileToUpdate);
+						dest.setLastModified(source.lastModified());
+						countFolders++;
 					}
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
 			}
+		}
 
-			if (countFiles == 0 && countFolders == 0) {
+		if (countFiles == 0 && countFolders == 0) {
 
-				printToLogAndConsole("No file updated");
+			printToLogAndConsole("No file updated");
 
-			} else {
+		} else {
 
-				printToLogAndConsole(countFiles + " files and " + countFolders + " folders updated");
+			printToLogAndConsole(countFiles + " files and " + countFolders + " folders updated");
 
-			}
 		}
 
 		printToLogAndConsole("");
@@ -379,13 +384,17 @@ public class Backup {
 
 	}
 
+	public boolean isIgnored(String path) {
+		return true;
+	}
+
 	public void clearResults() {
 		result.clear();
 	}
 
 	private boolean getConfirmation(String action, TreeSet<String> files) throws IOException {
 
-		System.out.println(filesToCopy.size() + " files to " + action + ", do you want to proceed?");
+		System.out.println(files.size() + " files to " + action + ", do you want to proceed?");
 		System.out.println("y=yes, n=no, s=show files");
 
 		String line = answerReader.readLine();

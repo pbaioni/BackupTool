@@ -1,5 +1,8 @@
 package main;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class BackupResult {
 
 	private int renamedFolders;
@@ -15,9 +18,11 @@ public class BackupResult {
 	private int removedFiles;
 
 	private int removedFolders;
+	
+	private List<String> log;
 
 	public BackupResult() {
-
+		log = new ArrayList<String>();
 	}
 
 	public int getRenamedFolders() {
@@ -75,6 +80,15 @@ public class BackupResult {
 	public void setRemovedFolders(int removedFolders) {
 		this.removedFolders = removedFolders;
 	}
+	
+
+	public List<String> getLog() {
+		return log;
+	}
+
+	public void setLog(List<String> log) {
+		this.log = log;
+	}
 
 	public String check(int[] expectedResults) {
 		
@@ -117,6 +131,28 @@ public class BackupResult {
 		removedFiles = 0;
 
 		removedFolders = 0;
+		
+		log.clear();
+	}
+	
+	public void mergeResult(BackupResult resultToMerge) {
+		
+		renamedFolders += resultToMerge.getRenamedFolders();
+
+		copiedFiles += resultToMerge.getCopiedFiles();
+
+		copiedFolders += resultToMerge.getCopiedFolders();
+
+		updatedFiles += resultToMerge.getUpdatedFiles();
+
+		updatedFolders += resultToMerge.getUpdatedFolders();
+
+		removedFiles += resultToMerge.getRemovedFiles();
+
+		removedFolders += resultToMerge.getRemovedFolders();
+		
+		log.add("");
+		log.addAll(resultToMerge.getLog());
 	}
 
 }

@@ -13,7 +13,10 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -22,24 +25,27 @@ import java.util.zip.ZipOutputStream;
 import main.BackupOptions;
 import main.BackupResult;
 import main.helper.FileHelper;
+import main.helper.TimeHelper;
 
 public class Backup {
+	
+	private static final Logger LOGGER = Logger.getLogger(Backup.class.getName());
 
 	private String syncSource;
 
 	private String syncDest;
 
-	private static final String ARCHIVE = "/BackupArchive";
+	private static final String ARCHIVE = "/Backup/Archive";
 
-	private static final String LOG_FOLDER = "/Results";
+	private static final String LOG_FOLDER = "/Backup/Results";
 
-	private String backupStartTime;
+	private Calendar backupStartTime;
 
-	private List<String> filesToBackup;
+	private HashSet<String> filesToCopy;
 
-	private List<String> commonFiles;
+	private HashSet<String> commonFiles;
 
-	private List<String> filesToRemove;
+	private HashSet<String> filesToRemove;
 
 	private List<String> log;
 
@@ -57,8 +63,27 @@ public class Backup {
 		File destFolder = new File(syncDest);
 		destFolder.mkdirs();
 	}
+	
+	public BackupResult synchronizeFolders(List<BackupOptions> options) throws IOException {
+		
+		backupStartTime = TimeHelper.getNow();
+		printToLogAndConsole("********* Start: " + TimeHelper.format(backupStartTime) + " *********");
+		printToLogAndConsole("Synchronising folders " + syncSource + " and " + syncDest + "");
+		printToLogAndConsole("");
 
-	private void calculateBackupAction(List<BackupOptions> backupActions) {
+		execute(options);
+
+		Calendar end = Calendar.getInstance();
+		printToLogAndConsole("********* End: " + TimeHelper.format(end) + " ( " + TimeHelper.getElapsedTime(backupStartTime, end) + " )  *********");
+		printToLogAndConsole("");
+
+		// writeLog();
+
+		return result;
+
+	}
+
+	private void execute(List<BackupOptions> backupActions) {
 
 		boolean doCopy = backupActions.contains(BackupOptions.COPY);
 
@@ -68,31 +93,35 @@ public class Backup {
 
 		boolean doDelete = backupActions.contains(BackupOptions.DELETE);
 
-		List<String> sourceFiles = new ArrayList<String>();
-		List<String> destFiles = new ArrayList<String>();
+		Set<String> sourceFiles = new HashSet<String>();
+		Set<String> destFiles = new HashSet<String>();
 
 		try (Stream<Path> sourcePaths = Files.walk(Paths.get(syncSource));
 				Stream<Path> destPaths = Files.walk(Paths.get(syncDest))) {
 
+			LOGGER.info("Evaluating source file tree...");
+			
 			sourceFiles = sourcePaths.map(p -> new File(p.toString()))
 					.filter(f -> !f.getAbsolutePath().equals(syncSource))
-					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toList());
+					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toSet());
 
+			LOGGER.info("Evaluating destination file tree...");
+			
 			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.getAbsolutePath().equals(syncDest))
-					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toList());
+					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toSet());
 
 			if (doCopy) {
-				printToLogAndConsole("Calculating files to backup...");
-				filesToBackup = new ArrayList<String>(sourceFiles);
-				filesToBackup.removeAll(destFiles);
-				filesToBackup.remove("");
+				printToLogAndConsole("Calculating files to copy...");
+				filesToCopy = new HashSet<String>(sourceFiles);
+				filesToCopy.removeAll(destFiles);
+				filesToCopy.remove("");
 				// copy files existing in source folder but missing in destination folder
-				backupNewFiles();
+				copyNewFiles();
 			}
 
 			if (doUpdate) {
 				printToLogAndConsole("Calculating common files to update...");
-				commonFiles = new ArrayList<String>(sourceFiles);
+				commonFiles = new HashSet<String>(sourceFiles);
 				commonFiles.retainAll(destFiles);
 				// update files existing in destination folder but recently modified in source
 				// folder
@@ -101,7 +130,7 @@ public class Backup {
 
 			if (doArchive || doDelete) {
 				printToLogAndConsole("Calculating obsolete backup files to archive and remove...");
-				filesToRemove = new ArrayList<String>(destFiles);
+				filesToRemove = new HashSet<String>(destFiles);
 				filesToRemove.removeAll(sourceFiles);
 				filesToRemove.removeIf(s -> s.contains(ARCHIVE));
 			}
@@ -120,61 +149,32 @@ public class Backup {
 		}
 	}
 
-	public BackupResult synchronizeFolders(List<BackupOptions> options) throws IOException {
 
-		Calendar start = Calendar.getInstance();
-		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
-		backupStartTime = sdf.format(start.getTime());
-
-		printToLogAndConsole("********* Start: " + backupStartTime + " *********");
-		printToLogAndConsole("Synchronising folders " + syncSource + " and " + syncDest + "");
-		printToLogAndConsole("");
-
-		calculateBackupAction(options);
-
-		Calendar end = Calendar.getInstance();
-		String backupEndTime = sdf.format(end.getTime());
-		Duration diff = Duration.between(start.toInstant(), end.toInstant());
-		long hours = diff.toHours();
-		long minutes = diff.toMinutes() - 60 * hours;
-		long seconds = diff.getSeconds() - 60 * minutes - 3600 * hours;
-
-		String duration = hours + " hours, " + minutes + " minutes, " + seconds + " seconds";
-
-		printToLogAndConsole("********* End: " + backupEndTime + " ( " + duration + " )  *********");
-		printToLogAndConsole("");
-
-		// writeLog();
-
-		return result;
-
-	}
-
-	private void backupNewFiles() throws IOException {
+	private void copyNewFiles() throws IOException {
 
 		int countFiles = 0;
 		int countFolders = 0;
-		if (filesToBackup.isEmpty()) {
+		if (filesToCopy.isEmpty()) {
 
-			printToLogAndConsole("Nothing to backup");
+			printToLogAndConsole("Nothing to copy");
 
 		} else {
 
 			printToLogAndConsole("Starting to copy...");
 
-			for (String fileToBackup : filesToBackup) {
+			for (String fileToCopy : filesToCopy) {
 				try {
-					File source = new File(syncSource + fileToBackup);
+					File source = new File(syncSource + fileToCopy);
 					if (source.isDirectory()) {
-						printToLogAndConsole("Creating folder " + fileToBackup);
+						printToLogAndConsole("Creating folder " + fileToCopy);
 
-						Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+						Files.copy(Paths.get(syncSource + fileToCopy), Paths.get(syncDest + fileToCopy),
 								StandardCopyOption.REPLACE_EXISTING);
 						countFolders++;
 					} else {
-						printToLogAndConsole("Saving " + fileToBackup);
+						printToLogAndConsole("Saving " + fileToCopy);
 
-						Files.copy(Paths.get(syncSource + fileToBackup), Paths.get(syncDest + fileToBackup),
+						Files.copy(Paths.get(syncSource + fileToCopy), Paths.get(syncDest + fileToCopy),
 								StandardCopyOption.REPLACE_EXISTING);
 						countFiles++;
 					}
@@ -232,7 +232,7 @@ public class Backup {
 
 			if (countFiles == 0 && countFolders == 0) {
 
-				printToLogAndConsole("No file to update");
+				printToLogAndConsole("No file updated");
 
 			} else {
 
@@ -252,7 +252,7 @@ public class Backup {
 
 		if (filesToRemove.isEmpty()) {
 
-			printToLogAndConsole("Nothing to remove");
+			printToLogAndConsole("Nothing to archive");
 
 		} else {
 
@@ -265,7 +265,7 @@ public class Backup {
 
 			// opening streams
 			FileOutputStream fos = new FileOutputStream(
-					syncDest + ARCHIVE + "/ObsoleteFiles_" + backupStartTime + ".zip");
+					syncDest + ARCHIVE + "/ObsoleteFiles_" + TimeHelper.format(backupStartTime) + ".zip");
 			ZipOutputStream zipOut = new ZipOutputStream(fos);
 
 			for (String fileToRemoveName : filesToRemove) {
@@ -275,7 +275,7 @@ public class Backup {
 						printToLogAndConsole("Archiving " + syncDest + fileToRemoveName);
 
 						// adding file to archive zip
-						ZipEntry zipEntry = new ZipEntry(backupStartTime + "/" + fileToRemove.getName());
+						ZipEntry zipEntry = new ZipEntry(TimeHelper.format(backupStartTime) + "/" + fileToRemove.getName());
 						zipOut.putNextEntry(zipEntry);
 						zipOut.write(FileHelper.getFileContentAsBytes(fileToRemove.getAbsolutePath()));
 						zipOut.closeEntry();

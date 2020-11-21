@@ -7,8 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -16,6 +14,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,17 +34,17 @@ public class Backup {
 
 	private String syncDest;
 
-	private static final String ARCHIVE = "/Backup/Archive";
+	private static final String ARCHIVE_FOLDER = "/Backup/Archive";
 
-	private static final String LOG_FOLDER = "/Backup/Results";
+	private static final String LOG_FOLDER = "/Backup/Log";
 
 	private Calendar backupStartTime;
 
-	private HashSet<String> filesToCopy;
+	private TreeSet<String> filesToCopy;
 
-	private HashSet<String> commonFiles;
+	private TreeSet<String> commonFiles;
 
-	private HashSet<String> filesToRemove;
+	private TreeSet<String> filesToRemove;
 
 	private List<String> log;
 
@@ -77,8 +76,8 @@ public class Backup {
 		printToLogAndConsole("********* End: " + TimeHelper.format(end) + " ( " + TimeHelper.getElapsedTime(backupStartTime, end) + " )  *********");
 		printToLogAndConsole("");
 
-		// writeLog();
-
+		writeLog();
+		
 		return result;
 
 	}
@@ -104,25 +103,31 @@ public class Backup {
 			sourceFiles = sourcePaths.map(p -> new File(p.toString()))
 					.filter(f -> !f.getAbsolutePath().equals(syncSource))
 					.map(f -> f.getAbsolutePath().replace(syncSource, "")).collect(Collectors.toSet());
+			
+			LOGGER.info("Source file tree: " + sourceFiles);
 
 			LOGGER.info("Evaluating destination file tree...");
 			
 			destFiles = destPaths.map(p -> new File(p.toString())).filter(f -> !f.getAbsolutePath().equals(syncDest))
 					.map(f -> f.getAbsolutePath().replace(syncDest, "")).collect(Collectors.toSet());
 
+			LOGGER.info("Dest file tree: " + destFiles);
+			
 			if (doCopy) {
 				printToLogAndConsole("Calculating files to copy...");
-				filesToCopy = new HashSet<String>(sourceFiles);
+				filesToCopy = new TreeSet<String>(sourceFiles);
 				filesToCopy.removeAll(destFiles);
 				filesToCopy.remove("");
+				LOGGER.info("Files to copy: " + filesToCopy);
 				// copy files existing in source folder but missing in destination folder
 				copyNewFiles();
 			}
 
 			if (doUpdate) {
 				printToLogAndConsole("Calculating common files to update...");
-				commonFiles = new HashSet<String>(sourceFiles);
+				commonFiles = new TreeSet<String>(sourceFiles);
 				commonFiles.retainAll(destFiles);
+				LOGGER.info("Common files: " + commonFiles);
 				// update files existing in destination folder but recently modified in source
 				// folder
 				updateModifiedFiles();
@@ -130,9 +135,10 @@ public class Backup {
 
 			if (doArchive || doDelete) {
 				printToLogAndConsole("Calculating obsolete backup files to archive and remove...");
-				filesToRemove = new HashSet<String>(destFiles);
+				filesToRemove = new TreeSet<String>(destFiles);
 				filesToRemove.removeAll(sourceFiles);
-				filesToRemove.removeIf(s -> s.contains(ARCHIVE));
+				filesToRemove.removeIf(s -> s.contains(ARCHIVE_FOLDER));
+				LOGGER.info("Files to archive and delete: " + filesToRemove);
 			}
 
 			// archive files existing in destination folder but removed in source folder
@@ -260,12 +266,12 @@ public class Backup {
 			printToLogAndConsole("Starting to archive files...");
 
 			// creating archive folder
-			File archiveFile = new File(syncDest + ARCHIVE);
+			File archiveFile = new File(syncDest + ARCHIVE_FOLDER);
 			archiveFile.mkdirs();
 
 			// opening streams
 			FileOutputStream fos = new FileOutputStream(
-					syncDest + ARCHIVE + "/ObsoleteFiles_" + TimeHelper.format(backupStartTime) + ".zip");
+					syncDest + ARCHIVE_FOLDER + "/ObsoleteFiles_" + TimeHelper.format(backupStartTime) + ".zip");
 			ZipOutputStream zipOut = new ZipOutputStream(fos);
 
 			for (String fileToRemoveName : filesToRemove) {
@@ -368,9 +374,9 @@ public class Backup {
 
 	private void writeLog() {
 
-		File logs = new File(syncDest + ARCHIVE + LOG_FOLDER);
+		File logs = new File(syncDest + LOG_FOLDER);
 		logs.mkdirs();
-		String logPath = syncDest + ARCHIVE + LOG_FOLDER + "/backupResult_" + backupStartTime + ".txt";
+		String logPath = syncDest + LOG_FOLDER + "/backupResult_" + TimeHelper.format(backupStartTime) + ".txt";
 		FileHelper.writeLinesInFile(logPath, log);
 
 	}

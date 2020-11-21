@@ -7,7 +7,7 @@ import java.util.List;
 
 import main.action.Backup;
 
-public class Launch {
+public class StartBackup {
 
 	private static String syncSource = "";
 	private static String syncDest = "";
